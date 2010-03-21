@@ -1,0 +1,106 @@
+===========================================================================
+This directory contains the include files for the Cached Murphi Verifier 
+Release 3.1. 
+===========================================================================
+
+This distribution has been obtained by modifying the following
+files in the Murphi Verifier Release 3.1 distribution.
+
+MU_PROLOG.INC
+   lines 117-121: added the following lines:
+
+    //* Murphi Version Number */
+    #if defined(CACHED_MURPHI)
+    #define INCLUDE_FILE_VERSION "Cached Murphi Release 3.1"
+    #else
+    #define INCLUDE_FILE_VERSION "Murphi Release 3.1"
+    #endif
+
+   to define the version strings for standard and
+   cached Murphi.
+
+   lines 123-129: added the following lines:
+
+    /****************************************
+      Cached Murphi constants
+     ****************************************/
+    /* gdp: max length of collision chain in cache */
+    #define MAX_HT_CHAIN_LENGTH 11
+    /* gdp: max length of collision chain in cache when hash compaction is used */
+    #define MAX_HT_CHAIN_LENGTH_HC 13
+
+   to define the constants used in state caching.
+
+
+   lines 146-167: modified the original #include directives as follows:
+
+    #if defined(CACHED_MURPHI)
+    #include "murphi.cache/mu_util.h"
+    #else
+    #include "mu_util.h"
+    #endif
+
+    #if defined(CACHED_MURPHI)
+    #include "murphi.cache/mu_io.h"
+    #else
+    #include "mu_io.h"
+    #endif
+
+    #if defined(CACHED_MURPHI)
+    #include "murphi.cache/mu_state.h"
+    #include "murphi.cache/mu_system.h"
+    #else
+    #include "mu_state.h"
+    #include "mu_system.h"
+    #endif
+
+   When the symbol CACHED_MURPHI is defined, the verifier is compiled 
+   using the alternative headers from the Cached Murphi distribution.
+   This symbol is automatically defined in the verifier source by the
+   Murphi compiler when the option --cache is specified.
+   If the symbol CACHED_MURPHI is undefined, state caching is not enabled
+   and the compilation process uses all the headers from the standard 
+   Murphi 3.1 distribution.
+
+
+MU_EPILOG.INC
+   lines 80-96: modified the original #include directives as follows:
+
+    #if defined(CACHED_MURPHI)
+    #include "murphi.cache/mu_io.C"
+    #else
+    #include "mu_io.C"
+    #endif
+
+    #include "mu_sym.C"
+
+    #if defined(CACHED_MURPHI)
+    #include "murphi.cache/mu_state.C"
+    #include "murphi.cache/mu_system.C"
+    #else
+    #include "mu_state.C"
+    #include "mu_system.C"
+    #endif
+
+   When the symbol CACHED_MURPHI is defined, the verifier is compiled 
+   using the alternative sources from the Cached Murphi distribution.
+   This symbol is automatically defined in the verifier source by the
+   Murphi compiler when the option --cache is specified.
+   If the symbol CACHED_MURPHI is undefined, state caching is not enabled
+   and the compilation process uses all the sources from the standard 
+   Murphi 3.1 distribution.
+
+
+MU_VERIFIER.C
+   lines 83-85: Added support for Linux RedHat 7.1 
+        (the the sysconf() redeclaration is disabled if SYSCONF_RDCL is
+         defined. See the Makefile for details.)
+
+
+MURPHI.CACHE/
+   This directory is new in the Cached Murphi 3.1 distribution.
+   It contains files that have been added or modified w.r.t. Murphi 3.1 
+   to support Cached Murphi 3.1 (see README.cmurphi in the directory
+   for more details).
+
+===========================================================================

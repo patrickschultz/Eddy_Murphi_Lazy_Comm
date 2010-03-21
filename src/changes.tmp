@@ -1,0 +1,212 @@
+3696:  /* IM<b> */
+3697-  if (args->dstrb_only)
+3698-  fprintf(codefile,
+3699-      "  void NextRule(unsigned short & what_rule)\n"
+3700-      "  {\n"
+3701-      "    unsigned r = what_rule - %d;\n",
+3702-      maxrulenumber - getsize()
+3703-      );
+3704-  else
+3705:  /* IM<e> */
+3706-  fprintf(codefile,
+3707-      "  void NextRule(unsigned & what_rule)\n"
+3708-      "  {\n"
+3709-      "    unsigned r = what_rule - %d;\n",
+3710-      maxrulenumber - getsize()
+3711-      );
+3712-  generate_rule_params_assignment( enclosures );
+3713-  fprintf(codefile,"    while (what_rule < %d ",
+3714-      maxrulenumber  );
+3715-  generate_rule_params_choose_exist( enclosures );
+3716-  fprintf(codefile,")\n      {\n");
+3717-
+3718-//   fprintf(codefile,"        if (args->multiset_reduction.value)\n");
+3719-//   fprintf(codefile,"          {\n");
+3720-//   generate_rule_params_choose_next( enclosures, getsize() );
+3721-//   fprintf(codefile,"          }\n");
+3722-
+3723-//   fprintf(codefile,"        if (args->multiset_reduction.value\n");
+3724-//   fprintf(codefile,"            || ( TRUE ");
+3725-
+3726-
+3727-  // Vitaly's hacks
+3728-
+3729-  // Check if ``dependent'' choose parameters are there
+3730-  fprintf(codefile,"        if ( ( TRUE ");
+3731-  generate_rule_params_choose_all_in( dep_choose );
+3732-  fprintf(codefile," ) ) {\n");
+3733-
+3734-  // Check condition
+3735-  generate_rule_aliases( enclosures );
+3736-  fprintf(codefile,"              if (%s) {\n",
+3737-      condition->generate_code() );
+3738-
+3739-  // Check is ``independent'' choose parameters are there
+3740-  fprintf(codefile,"                if ( ( TRUE ");
+3741-  generate_rule_params_choose_all_in( indep_choose );
+3742-  fprintf(codefile," ) )\n");
+3743-  fprintf(codefile,"                  return;\n");
+3744-  fprintf(codefile,"                else\n");
+3745-  fprintf(codefile,"                  what_rule++;\n");
+--
+4566:  /* IM<b> */
+4567-  if (args->dstrb_only)
+4568-  fprintf(codefile,
+4569-      "void SetNextEnabledRule(unsigned short & what_rule)\n"
+4570-      "{\n"
+4571-      "  category = CONDITION;\n"
+4572-      );
+4573-  else
+4574:  /* IM<e> */
+4575-  fprintf(codefile,
+4576-      "void SetNextEnabledRule(unsigned & what_rule)\n"
+4577-      "{\n"
+4578-      "  category = CONDITION;\n"
+4579-      );
+4580-  for (sr = simplerule::SimpleRuleList;
+4581-       sr != NULL; sr = sr->NextSimpleRule)
+4582-    {
+4583-      if (sr->getclass() == rule::Simple && sr != error_rule)
+4584-    {
+4585-      if (i != 0)
+4586-          fprintf(codefile,
+4587-              "  if (what_rule>=%d && what_rule<%d)\n"
+4588-              "    { R%d.NextRule(what_rule);\n"
+4589-              "      if (what_rule<%d) return; }\n",
+4590-              i, i+sr->getsize(), r, i+sr->getsize());
+4591-      else
+4592-          fprintf(codefile,
+4593-              "  if (what_rule<%d)\n"
+4594-              "    { R%d.NextRule(what_rule);\n"
+4595-              "      if (what_rule<%d) return; }\n",
+4596-              i+sr->getsize(), r, i+sr->getsize());
+4597-      r++; i+=sr->getsize();
+4598-    }
+4599-    }
+4600-  fprintf(codefile,
+4601-      "}\n"
+4602-      );
+4603-
+4604-  // generate Condition(r)
+4605-  fprintf(codefile,
+4606-      "bool Condition(unsigned r)\n"
+4607-      "{\n"
+4608-      "  category = CONDITION;\n"
+4609-      );
+4610-  i = 0; r = 0;
+4611-  for (sr = simplerule::SimpleRuleList;
+4612-       sr != NULL; sr = sr->NextSimpleRule)
+4613-    {
+4614-      if (sr->getclass() == rule::Simple && sr != error_rule)
+--
+4741:  /* IM<b> */
+4742-  /*if (args->hash_cache)  //gdp*/
+4743-  if (args->hash_cache || args->parallel || args->dstrb_only)
+4744:  /* IM<e> */
+4745-    fprintf(codefile,"#define MURPHI_VERSION \"%s\"\n", MURPHI_VERSION );
+4746-  else
+4747-    fprintf(codefile,"#define MURPHI_VERSION \"Murphi Release 3.1\"\n");
+4748-    
+4749-  fprintf(codefile,"#define MURPHI_DATE \"%s\"\n", LAST_DATE);
+4750-  fprintf(codefile, "#define PROTOCOL_NAME \"");   // added by Uli
+4751-  for (int i=0, l=strlen(args->filename)-2; i<l; i++)
+4752-    fputc(args->filename[i], codefile);
+4753-  fprintf(codefile, "\"\n#define BITS_IN_WORLD %d\n", bits_in_world);
+4754-  if (args->no_compression)
+4755-    fprintf(codefile, "#define ALIGN\n");
+4756-  if (args->hash_compression)
+4757-    fprintf(codefile, "#define HASHC\n");
+4758-  if (args->hash_cache)
+4759-    fprintf(codefile, "#define CACHED_MURPHI\n");
+4760:  /* IM<b> */
+4761-  if (args->parallel)
+4762-    fprintf(codefile, "#define PARALLEL\n");
+4763-  if (args->dstrb_only)
+4764-    fprintf(codefile, "#define DSTRB_ONLY\n");
+4765:  /* IM<e> */
+4766-  fprintf(codefile, "\n");
+4767-  
+4768-  // include prolog
+4769-  fprintf(codefile,"/********************\n  Include\n");
+4770-  fprintf(codefile," ********************/\n");
+4771-  fprintf(codefile,"#include \"mu_prolog.inc\"\n");
+4772-  
+4773-  /* generate dependent stuff. */
+4774-  fprintf(codefile,"\n/********************\n  Decl declaration\n");
+4775-  fprintf(codefile," ********************/\n\n");
+4776-  // typedecl declaration -- added to fixed a bug
+4777-  if (typedecl::origin != NULL) typedecl::origin->generate_all_decl();
+4778-  // globals->generate_decls() gets done by procedures->generate_decls
+4779-  procedures->generate_decls();
+4780-  fprintf(codefile,"\n\n\n");
+4781-  
+4782-  // generate the world
+4783-  fprintf(codefile,"\n/********************\n  The world\n");
+4784-  fprintf(codefile," ********************/\n");
+4785-  make_world(globals);
+4786-  fprintf(codefile,"\n");
+4787-  
+4788-  // generate the codes for each rule
+4789-  fprintf(codefile,"\n/********************\n  Rule declarations\n");
+4790-  fprintf(codefile," ********************/\n");
+4791-
+4792-//   for ( rule *r = rules;
+4793-//  r != NULL;
+4794-//  r = r->next )
+4795-//     r->generate_code();
+4796-//   fprintf(codefile,"\n\n\n");
+4797-// 
+4798-//   /* generate the lists of rules, startstate, and invariants. */
+4799-//   // generate the lists of rules
+4800-//   fprintf(codefile,"\n/********************\n  Rule records\n");
+4801-//   fprintf(codefile," ********************/\n");
+4802-//   fprintf(codefile, "const rulerec rules[] = {\n");
+4803-//   count = rulelist->print_rules();
+4804-//   fprintf(codefile,"};\n");
+4805-
+--
+4807:  /* IM<b> */
+4808-  if (args->dstrb_only)
+4809-    fprintf(codefile, "const unsigned short numrules = %d;\n", count );
+4810-  else
+4811:  /* IM<e> */
+4812-  fprintf(codefile, "const unsigned numrules = %d;\n", count );
+4813-  
+4814-  fprintf(codefile,"\n/********************\n  parameter\n");
+4815-  fprintf(codefile," ********************/\n");
+4816-  fprintf(codefile, "#define RULES_IN_WORLD %d\n", count );
+4817-  fprintf(codefile,"\n");
+4818-  
+4819-  // generate the lists of startstate
+4820-  fprintf(codefile,"\n/********************\n  Startstate records\n");
+4821-  fprintf(codefile," ********************/\n");
+4822-
+4823-//   fprintf(codefile, "const rulerec startstates[] = {\n");
+4824-//   count = startstatelist->print_rules();
+4825-//   fprintf(codefile,"};\n");
+4826-
+4827-  count = generate_startstates();
+4828-  fprintf(codefile, "unsigned short StartStateManager::numstartstates = %d;\n", count);
+4829-  
+4830-  // generate the lists of invariants 
+4831-  fprintf(codefile,"\n/********************\n  Invariant records\n");
+4832-  fprintf(codefile," ********************/\n");
+4833-  (void) generate_invariants();
+4834-  fprintf(codefile, "const rulerec invariants[] = {\n");
+4835-  count = invariantlist->print_rules();
+4836-  fprintf(codefile,"};\n");
+4837-  fprintf(codefile, "const unsigned short numinvariants = %d;\n", count );
+4838-
+4839-  // generate the special true function for liveness
+4840-  fprintf(codefile, "\n/******************/\n");
+4841-  fprintf(codefile, "bool mu__true_live() { return TRUE; }");
+4842-  fprintf(codefile, "\n/******************/\n");
+4843-
+4844-  // generate the lists of livenesses
+4845-  fprintf(codefile,"\n/********************\n  Liveness records\n");
+4846-  fprintf(codefile," ********************/\n");
+4847-  fprintf(codefile, "const liverec livenesses[] = {\n");
+4848-  count = livenesslist->print_liverules();
+4849-  fprintf(codefile,"};\n");
+4850-  fprintf(codefile, "const unsigned short numlivenesses = %d;\n", count );
+4851-  

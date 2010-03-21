@@ -1,0 +1,77 @@
+#
+# Makefile for compiling the Murphi verifier for a given protocol 
+#          from its .C file
+#
+# Make sure that you set INCLUDEPATH and CXX according to your system
+#
+# Author:               Ulrich Stern
+# Version:              1
+# Creation Date:        Sat May 25 15:13:39 PDT 1996
+# Filename:             Makefile
+# History:
+#
+# Experiences compiling the Murphi verifier:
+#  There are two things that caused problems in this Muphi release:
+#  - Some compilers - especially those based on cfront - can only generate
+#   very simple inline code. One has to turn off inlining in this case. The
+#   options are typically +d (CC, OCC, DCC) or -fno-default-inline (g++).
+#   The compilation is much faster then as well.
+#  - The "signal" system call used in Murphi for defining an own handler
+#   to catch division by zero seems to be system dependent. Two different
+#   ways to use this call can be selected by defining or not-defining
+#   CATCH_DIV. See below for when defining CATCH_DIV was needed.
+#  - The "sysconf" system function is defined in unistd.h, but Murphi
+#   redefines it in mu_verifier.h. On Linux Red Hat 7.1 this causes
+#   an error since the redeclared prototype is different from the 
+#   original one ("throws different exceptions", as g++ says).
+#   Anyway, is seems that on this platform the redeclaration can 
+#   be omitted without problems. The definition of SYSCONF_RDCL
+#   does this, when the selected platform is Red Hat 7.1 (see below).
+#
+# Tested on the following machines:
+#  beet        SGI INDY    running IRIX 5.3
+#  cabbage     Sun SPARC20 running SunOS 4.1.3_U1
+#  dawn        Sun SPARC20 running SunOS 5.4
+#  elaine      Sun SPARC20 running SunOS 4.1.4
+#
+# Compiler versions:
+#  g++    2.6.0 (cabbage), 2.6.3 (beet), 2.7.2 (dawn, elaine)
+#  CC     3.0 or higher (elaine)
+#  OCC    3.2.1 (beet)
+#  DCC    4.0 (beet)
+#
+
+INCLUDEPATH = ../../include
+
+CXX = mpiCC 
+
+CFLAGS = -DSYSCONF_RDCL -Wno-deprecated
+
+LINKOPT=-lpthread
+
+MU=../../src/mu
+
+# rules for compiling
+all: cache3multi  newcache3  newlist6
+cache3multi: cache3multi.C
+	${CXX} ${CFLAGS} ${CFLAGSOPT} ${OFLAGS} -o cache3multi cache3multi.C -I${INCLUDEPATH} ${LINKOPT}
+
+cache3multi.C: cache3multi.m
+	${MU} -p ${MURPHIOPT} cache3multi.m
+
+
+newcache3: newcache3.C
+	${CXX} ${CFLAGS} ${CFLAGSOPT} ${OFLAGS} -o newcache3 newcache3.C -I${INCLUDEPATH} ${LINKOPT}
+
+newcache3.C: newcache3.m
+	${MU} -p ${MURPHIOPT} newcache3.m
+
+
+newlist6: newlist6.C
+	${CXX} ${CFLAGS} ${CFLAGSOPT} ${OFLAGS} -o newlist6 newlist6.C -I${INCLUDEPATH} ${LINKOPT}
+
+newlist6.C: newlist6.m
+	${MU} -p ${MURPHIOPT} newlist6.m
+
+clean:
+	rm -f *.C cache3multi  newcache3  newlist6  *.o

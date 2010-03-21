@@ -1,0 +1,61 @@
+# Makefile for parallel Murphi, Ulrich Stern
+# Derived from Richard's Makefile 
+
+# MPI_HOME := ../../mpich
+# CXX = g++
+# CXX = ${MPI_HOME}/bin/mpiCC
+CXX = mpiCC
+
+#LIBS = -lsocket -lnsl -lposix4 -R ${MPI_HOME}/lib
+# LIBS = -L${MPI_HOME}/lib
+
+# INCLUDES = -I${MPI_HOME}/include -I../include
+INCLUDES = -I../../include
+
+# OPT_FLAGS =   -DSOLARIS -O4 -fexpensive-optimizations  -fschedule-insns2
+#DEBUG_FLAGS = -ggdb -DDEBUG
+# BENCH_FLAGS = -O3 -fno-default-inline   # for benchmarks
+
+#CFLAGS =  ${OPT_FLAGS} -DGLUNIX
+#CFLAGS =  ${DEBUG_FLAGS} -DGLUNIX
+#CFLAGS = ${BENCH_FLAGS} 
+CFLAGS = -DSYSCONF_RDCL -Wno-deprecated
+
+LINKOPT=-lpthread
+
+MU=../../src/mu
+
+all: down  lin  pingpong  sets  sort5
+
+sets: sets.C
+	${CXX}  ${CFLAGS} ${CFLAGSOPT} ${INCLUDES} -o sets sets.C $(LIBS) ${LINKOPT}
+
+sets.C: sets.m
+	${MU} -p ${MURPHIOPT} sets.m
+
+down: down.C
+	${CXX}  ${CFLAGS} ${CFLAGSOPT} ${INCLUDES} -o down down.C $(LIBS) ${LINKOPT}
+
+down.C: down.m
+	${MU} -p ${MURPHIOPT} down.m
+
+pingpong: pingpong.C
+	${CXX}  ${CFLAGS} ${CFLAGSOPT} ${INCLUDES} -o pingpong pingpong.C $(LIBS) ${LINKOPT}
+
+pingpong.C: pingpong.m
+	${MU} -p ${MURPHIOPT} pingpong.m
+
+lin: lin.C
+	${CXX}  ${CFLAGS} ${CFLAGSOPT} ${INCLUDES} -o lin lin.C $(LIBS) ${LINKOPT}
+
+lin.C: lin.m
+	${MU} -p ${MURPHIOPT} lin.m
+
+sort5: sort5.C
+	${CXX}  ${CFLAGS} ${CFLAGSOPT} ${INCLUDES} -o sort5 sort5.C $(LIBS) ${LINKOPT}
+
+sort5.C: sort5.m
+	${MU} -p ${MURPHIOPT} sort5.m
+
+clean: 
+	rm -f down  lin  pingpong  sets  sort5 *.C *.o

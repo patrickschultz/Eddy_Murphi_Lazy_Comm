@@ -1,0 +1,67 @@
+===========================================================================
+This directory contains the source code for the Cached Murphi Compiler 
+Release 3.1.
+===========================================================================
+
+This distribution has been obtained by modifying the following
+files in the Murphi Compiler Release 3.1 distribution.
+
+
+cpp_code.C
+   lines 4722-4725: added the following lines:
+
+    if (args->hash_cache)  //gdp
+      fprintf(codefile,"#define MURPHI_VERSION \"%s\"\n", MURPHI_VERSION );
+    else
+      fprintf(codefile,"#define MURPHI_VERSION \"Murphi Release 3.1\"\n");
+    
+   to insert the right #DEFINEs in the generated verifier.
+   When the option --cache is not specified, the verifier
+   is the same as in the standard Murphi Release 3.1.
+
+   lines 4736-4737: added the following lines:
+
+    if (args->hash_cache)
+        fprintf(codefile, "#define CACHED_MURPHI\n");
+
+   to insert the right #DEFINEs in the generated verifier.
+   These define directives control the compilation of the
+   alternative code for Cached Murphi.
+
+
+mu.H
+   line 203: added the following line
+
+        bool hash_cache;
+
+   to declare the argument flag used for Cached Murphi
+   option.
+
+
+mu.C
+   line 174: added one item in the constructor declaring list:
+
+        hash_cache(FALSE)
+
+   to initialize the new argument flag.
+
+   lines 199-202: added the following lines:
+
+        if (strcmp(av[i], "--cache") == 0) {
+           hash_cache = TRUE;
+           continue;
+        }
+
+   to parse the new compiler argument --cache (for Cached Murphi)
+
+
+   line 280: added the following line:
+
+    \t--cache    \t\t   \tuse simple state caching\n\
+
+   to print the cached murphi switch in the compiler help.
+
+   lines 421-431: modified the print_header function to
+   print the correct copyright for Cached Murphi.
+
+===========================================================================

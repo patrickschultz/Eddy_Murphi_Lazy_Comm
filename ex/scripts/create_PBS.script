@@ -1,0 +1,339 @@
+#!/bin/bash
+
+qstat_availab=`which qstat 2> /dev/null`
+if [ "${qstat_availab}" == "" ]
+then
+	echo This script does not work when the command qstat is not available
+	exit
+fi
+
+function usage ()
+{
+	echo $0 | awk '{printf("\n\n\nUsage: %s -f <file> -N <# of nodes> -ppn <# of procs (opt)> -m <memory resource for PBS (opt)> -mt <max time (opt)> -mtf <max times file (opt)> -vo <ver opts (opt)> -queue <queue name (opt)> -keep (opt) -nompi (opt) -noexec (opt) -nf <bhost file for lamboot (opt)>\n\n\nWhere:\n\t<file> is the executable file for the parallel and distributed verification (if the executable file does not exist, it must be possible to make it, i.e. a Makefile.MPI.bc must exist in the same directory of <file>)\n\t<# of nodes> is the number of nodes which the distributed computation may use\n\t<# of procs> is the number of processes per node (default value is 1)\n\t<memory resource for PBS> is the amount of memory (in MB) that PBS has to reserve on each node\n\t<max time> is the max time allowed for the verification (default is the maximum allowed on the current queue; must have the following format: [[hours:]minutes:]seconds[.milliseconds])\n\t<max times file> is a text file where each line is of type <from_nodes> <to_nodes> <max time>, meaning that using a number of nodes between <from_nodes> and <to_nodes> the maximum allowed time is <max time>\n\t<ver opts> are the verification options to be passed to <file>; they must be enclosed by \\( \\)\n\t<queue name> is the name of the queue to be used (default is the first enabled queue shown by qstat -Q)\n\tIf -keep is given, the script for qsub is not deleted, otherwise it is\n\tIf -nompi is given, then mpirun is not used to run the file\n\tIf -noexec is given, the PBS script is generated but not executed\n\t<bhost file for lamboot> is the file (in bhost format) to be used to lamboot the environment\n\n\n", $1);}'
+	exit
+}
+
+min_num_args=4
+#max_num_args=8
+
+#if [ $# -lt ${min_num_args} -o $# -gt ${max_num_args} ]
+if [ $# -lt ${min_num_args} ]
+then
+	usage
+fi
+
+nodes_file=""
+
+args_ptr=1
+while [ $# -ge ${args_ptr} ]
+do
+	opt=`echo $* | awk -v arg=${args_ptr} '{print $arg}'`
+	num_opts=2
+	case "${opt}" in
+		"-f") verif_file=`echo $* | awk -v arg=${args_ptr} '{print $(arg + 1)}'`;;
+		"-N") nodes=`echo $* | awk -v arg=${args_ptr} '{print $(arg + 1)}'`;;
+		"-ppn") ppn=`echo $* | awk -v arg=${args_ptr} '{print $(arg + 1)}'`;;
+		"-m") mem=`echo $* | awk -v arg=${args_ptr} '{print $(arg + 1)}'`;;
+		"-mt") walltime=`echo $* | awk -v arg=${args_ptr} '{print $(arg + 1)}'`;;
+		"-mtf") walltimefile=`echo $* | awk -v arg=${args_ptr} '{print $(arg + 1)}'`;;
+		"-vo") 
+			EddyMurphiVerifOpt=`echo $* | awk -F\\( '{print $2}' | awk -F\\) '{print $1}'`
+			num_opts=`echo ${EddyMurphiVerifOpt} | wc -w | awk '{printf("%d", $1 + 1)}'`;;
+		"-queue") queue=`echo $* | awk -v arg=${args_ptr} '{print $(arg + 1)}'`;;
+		"-nf")
+			nodes_file=`echo $* | awk -v arg=${args_ptr} '{print $(arg + 1)}'`
+			dir_nodes_file=`echo ${nodes_file} | awk -F/ '{if (NF == 1) printf("./"); else {for (i = 1; i < NF; i++) printf("%s/", $i);}}'`
+			nodes_file_name=`echo ${nodes_file} | awk -F/ '{printf("%s", $NF);}'`
+			pushd . > /dev/null
+			cd ${dir_nodes_file}
+			dir_nodes_file_compl=`pwd`/
+			popd > /dev/null
+			nodes_file=${dir_nodes_file_compl}${nodes_file_name};;
+		"-keep") 
+			keep="1"
+			num_opts=1;;
+		"-nompi") 
+			nompi="1"
+			num_opts=1;;
+		"-noexec") 
+			noexec="1"
+			num_opts=1;;
+		*) 
+			echo Unrecognized option `echo $* | awk -v arg=${args_ptr} '{print $arg}'`
+			usage;;
+	esac
+	((args_ptr+=num_opts))
+done
+
+if [ "${verif_file}" == "" -o "${nodes}" == "" ]
+then
+	echo 
+	echo
+	echo File or number of nodes not specified
+	usage
+fi
+
+if [ "${nompi}" != "" -a $nodes -ne 1 ]
+then
+	echo With option -nompi only one node is allowed
+	exit
+fi
+
+if [ "${queue}" != "" ]
+then
+	queue_valid=`qstat -Q | awk -v queue=${queue} 'BEGIN{valid = 0;}{if (FNR > 2 && $4 == "yes" && $1 == queue) valid = 1;}END{printf("%s", valid)}'`
+	if [ "${queue_valid}" != "1" ]
+	then
+		echo The queue ${queue} is not valid on `hostname`, where only the following queues are enabled: 
+		qstat -Q | awk '{if (FNR > 2 && $4 == "yes") print $1;}'
+		exit
+	fi
+else
+	queue=`qstat -Q | awk '{if (FNR > 2 && $4 == "yes") print $1}' | head -1`
+fi
+
+if [ "${walltime}" == "" ]
+then
+	if [ "${walltimefile}" == "" ]
+	then
+		walltime=`qstat -q | grep -aw ${queue} | awk '{if ($4 != "--") print $4; else printf("96:00:00");}'`
+		#the -a option of grep is necessary since seems that the answer of qstat could look like a binary file (!?!)
+	else
+		if [ ! \( -f ${walltimefile} \) ]
+		then
+			echo The times file ${walltimefile} does not exist
+			exit
+		fi
+		walltime=`cat ${walltimefile} | awk -v nodes=${nodes} '{if ($1 <= nodes && nodes <= $2) printf("%s", $3);}'`
+	fi
+fi
+
+if [ "${ppn}" == "" ]
+then
+	ppn=1
+fi
+
+if [ "${EddyMurphiVerifOpt}" != "" ]
+then
+	EddyMurphiVerifOptForLog=`echo ${EddyMurphiVerifOpt} | awk '{for (i = 1; i <= NF; i++) printf("%s.", $i);}' | awk '{gsub("/", "-slash-", $1); printf("%s", $1);}'`
+fi
+
+dir_verif_file=`echo ${verif_file} | awk -F/ '{if (NF == 1) printf("./"); else {for (i = 1; i < NF; i++) printf("%s/", $i);}}'`
+verif_file_name=`echo ${verif_file} | awk -F/ '{printf("%s", $NF);}'`
+
+if [ ! \( -d ${dir_verif_file} \) ]
+then
+	echo Directory ${dir_verif_file} does not exist, aborting
+	exit
+fi
+
+pushd . > /dev/null
+cd ${dir_verif_file}
+dir_verif_file_compl=`pwd`/
+popd > /dev/null
+
+if [ ! \( -x ${verif_file} \) ]
+then
+	if [ ! \( -f ${dir_verif_file}Makefile.MPI.bc \) ]
+	then
+		echo Neither ${verif_file} nor ${dir_verif_file}Makefile.MPI.bc exist in directory ${dir_verif_file}, aborting
+		exit
+	fi
+	pushd . > /dev/null
+	cd ${dir_verif_file}
+	echo
+	echo ${verif_file_name} | awk '{printf("Making %s...", $1)}'
+	make -f Makefile.MPI.bc ${verif_file_name} 2> res.make > /dev/null
+	if [ ! \( -x ${verif_file_name} \) ]
+	then
+		echo Error in compiling ${verif_file_name}:
+		cat res.make
+		exit
+	else
+		rm res.make
+	fi
+	echo done
+	echo
+	popd > /dev/null
+fi
+
+EddyMurphiVerif="${dir_verif_file_compl}${verif_file_name}"
+
+pbs_script="${EddyMurphiVerif}.pbs.sh"
+
+EddyMurphiVerifLogDir="${dir_verif_file_compl}logs"
+
+if [ -f ${EddyMurphiVerifLogDir} ]
+then	#should never happen...
+	echo ${EddyMurphiVerifLogDir} is an existing file, while it is needed to be a directory
+	exit
+else
+	if [ ! \( -d ${EddyMurphiVerifLogDir} \) ]
+	then
+		mkdir ${EddyMurphiVerifLogDir}
+	fi
+	EddyMurphiVerifLogDir=${EddyMurphiVerifLogDir}/
+	EddyMurphiVerifLogPBS="${EddyMurphiVerifLogDir}${verif_file_name}.${nodes}.${ppn}.${EddyMurphiVerifOptForLog}\${PBS_JOBID}.log"
+fi
+
+echo "#!/bin/tcsh" > ${pbs_script}
+echo "# lamjob.pbs " >> ${pbs_script}
+echo "# sample LAM-MPI PBS script" >> ${pbs_script}
+echo "" >> ${pbs_script}
+echo "# DO NOT CHANGE THE ORDER OF THIS FILE." >> ${pbs_script}
+echo "# DO NOT UNCOMMENT ANYTHING BEGINNING WITH #PBS." >> ${pbs_script}
+echo "# PBS directives begin with #PBS and" >> ${pbs_script}
+echo "# must preceed all bash statements." >> ${pbs_script}
+echo "# See man qsub (under EXTENDED DESCRIPTION)" >> ${pbs_script}
+echo "# for more information." >> ${pbs_script}
+echo "" >> ${pbs_script}
+
+echo "#**************************************" >> ${pbs_script}
+echo "#       User  specifications" >> ${pbs_script}
+echo "#   send email on event (a)bort (b)egin (e)end (n)ever" >> ${pbs_script}
+echo "#PBS -m n" >> ${pbs_script}
+echo "#" >> ${pbs_script}
+echo "#**************************************" >> ${pbs_script}
+echo "" >> ${pbs_script}
+echo "#**************************************" >> ${pbs_script}
+echo "#        Job specifications " >> ${pbs_script}
+echo "#   Queue where we want to run our job." >> ${pbs_script}
+echo "#   Run 'qstat -a' to see jobs currently running" >> ${pbs_script}
+echo "#   or queue'd." >> ${pbs_script}
+echo "#PBS -q ${queue}" >> ${pbs_script}
+echo "" >> ${pbs_script}
+echo "#   Resources reqested from PBS." >> ${pbs_script}
+echo "#   nodes:    number of nodes allocated to our job." >> ${pbs_script}
+echo "#             min=1, max=123" >> ${pbs_script}
+echo "#   walltime: walltime before PBS kills our job." >> ${pbs_script}
+echo "#             min=180, max=96:00:00" >> ${pbs_script}
+echo "#             [[hours:]minutes:]seconds[.milliseconds]" >> ${pbs_script}
+echo "#             Examples:" >> ${pbs_script}
+echo "#               walltime=60      (60 seconds)" >> ${pbs_script}
+echo "#               walltime=10:00   (10 minutes)" >> ${pbs_script}
+echo "#               walltime=5:00:00 (5 hours)" >> ${pbs_script}
+echo "#" >> ${pbs_script}
+echo "#   The command 'qstat -q' will show limits defined for" >> ${pbs_script}
+echo "#   each job queue." >> ${pbs_script}
+echo "#   See 'man pbs_resources' for a list of other resources" >> ${pbs_script}
+echo "#   which may be requested by a job." >> ${pbs_script}
+echo "#" >> ${pbs_script}
+echo "#PBS -l nodes=${nodes}:ppn=${ppn},walltime=${walltime}" >> ${pbs_script}
+echo "" >> ${pbs_script}
+if [ "${mem}" != "" ]
+then
+	echo "#PBS -l mem=${mem}mb" >> ${pbs_script}
+	echo "" >> ${pbs_script}
+fi
+
+echo "#   Our MPI program and arguments" >> ${pbs_script}
+echo "set LAMJOB = \"${EddyMurphiVerif} ${EddyMurphiVerifOpt}\"" >> ${pbs_script}
+echo "" >> ${pbs_script}
+echo "#   Number of processes to run per node. [-chk flag?]" >> ${pbs_script}
+echo "set PROCS_PER_NODE = ${ppn}" >> ${pbs_script}
+echo "" >> ${pbs_script}
+echo "#" >> ${pbs_script}
+echo "#**************************************" >> ${pbs_script}
+echo "" >> ${pbs_script}
+echo "#**************************************" >> ${pbs_script}
+echo "#        MPI Start/Run/Shutdown" >> ${pbs_script}
+echo "echo -n \"starting to set variables\"" >> ${pbs_script}
+echo "" >> ${pbs_script}
+echo "set NUM_NODES = \`wc -l \$PBS_NODEFILE |awk '{print \$1}'\`" >> ${pbs_script}
+echo "echo -n \"NUM_NODES is set\"" >> ${pbs_script}
+#echo "@ NUM_PROCS = \$NUM_NODES * \$PROCS_PER_NODE" >> ${pbs_script}
+#In this way, ppn must always be at most equal to the number of processors effectively available per node
+#Otherwise, uncomment the previous script command (and comment the following one), and replace the ppn directive in the -l PBS command above with defq
+echo "@ NUM_PROCS = \$NUM_NODES" >> ${pbs_script} 
+echo "echo -n \"NUM_PROCS is set\"" >> ${pbs_script}
+echo "" >> ${pbs_script}
+echo "echo -n \"Finished setting variables\"" >> ${pbs_script}
+echo "#   Save some info to <filename>.pbs.o" >> ${pbs_script}
+echo "echo -n \"Job started on \"" >> ${pbs_script}
+echo "date" >> ${pbs_script}
+echo "echo \"using \$NUM_NODES nodes, \$PROCS_PER_NODE process(es) per node\"" >> ${pbs_script}
+echo "echo -n \"master MPI process running on host \"" >> ${pbs_script}
+echo "hostname" >> ${pbs_script}
+echo "" >> ${pbs_script}
+echo "#   Start up lam" >> ${pbs_script}
+echo "cd \$PBS_O_WORKDIR" >> ${pbs_script}
+echo "echo -n \"starting \"" >> ${pbs_script}
+if [ "${nompi}" == "" ]
+then
+	echo "which lamboot" >> ${pbs_script}
+	echo "echo" >> ${pbs_script}
+	echo "" >> ${pbs_script}
+	echo "lamboot ${nodes_file}" >> ${pbs_script}
+	echo "" >> ${pbs_script}
+	echo "#   Here is an example of how to use MPI to run a" >> ${pbs_script}
+	echo "#   command on each of the nodes." >> ${pbs_script}
+	echo "echo LAM MPI using the following nodes:" >> ${pbs_script}
+	echo "lamexec -np \$NUM_NODES  hostname" >> ${pbs_script}
+	echo "" >> ${pbs_script}
+	echo "#   MPI runs" >> ${pbs_script}
+	echo "echo -n \"Starting \$LAMJOB using \$NUM_PROCS processors using \"" >> ${pbs_script}
+	echo "which mpirun" >> ${pbs_script}
+	echo "echo -n \" on \"" >> ${pbs_script}
+	echo "date" >> ${pbs_script}
+	echo "mpirun -O -np \$NUM_PROCS \$LAMJOB >& ${EddyMurphiVerifLogPBS}" >> ${pbs_script}
+	echo "echo -n \"Finished running job(s) on \"" >> ${pbs_script}
+	echo "date" >> ${pbs_script}
+	echo "" >> ${pbs_script}
+	echo "#   Stop lam" >> ${pbs_script}
+	echo "echo stopping lam" >> ${pbs_script}
+	echo "lamhalt -v" >> ${pbs_script}
+else
+	echo "echo -n \"Starting \$LAMJOB using \$NUM_PROCS processors \"" >> ${pbs_script}
+	echo "echo -n \" on \"" >> ${pbs_script}
+	echo "date" >> ${pbs_script}
+	echo "\$LAMJOB >& ${EddyMurphiVerifLogPBS}" >> ${pbs_script}
+	echo "echo -n \"Finished running job(s) on \"" >> ${pbs_script}
+	echo "date" >> ${pbs_script}
+	echo "" >> ${pbs_script}
+fi
+echo "exit" >> ${pbs_script}
+echo "" >> ${pbs_script}
+echo "#" >> ${pbs_script}
+echo "#**************************************" >> ${pbs_script}
+
+if [ "${noexec}" != "" ]
+then
+	echo The generated PBS script is in file ${pbs_script}
+	exit
+fi
+
+pbs_jobid=`qsub ${pbs_script} -e ${EddyMurphiVerifLogDir} -o ${EddyMurphiVerifLogDir} 2> error.pbs`
+
+error=`wc -l error.pbs | awk '{if ($1 > 0) print "Error"}'`
+
+if [ "${error}" == "Error" ]
+then
+	echo
+	echo qsub returned with the following error
+	echo
+	cat error.pbs
+	echo
+	rm error.pbs
+	exit
+fi
+
+EddyMurphiVerifLog="${EddyMurphiVerifLogDir}${verif_file_name}.${nodes}.${ppn}.${EddyMurphiVerifOptForLog}${pbs_jobid}.log"
+
+echo
+echo "To see the jobs queue, type qstat -a"
+echo
+echo
+echo "To see the verification status in progress, type the following command:"
+echo
+echo "	tail -f ${EddyMurphiVerifLog}"
+echo
+echo
+echo "${EddyMurphiVerifLog} will also contain the final verification log"
+echo
+
+rm error.pbs
+
+if [ "${keep}" == "" ]
+then
+	rm ${pbs_script}
+fi

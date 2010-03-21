@@ -1,0 +1,65 @@
+===========================================================================
+
+Eddy_Murphi Release 3.2.3
+Finite-state Concurrent System Verifier for multi-core clusters via 
+message passing and threading.
+
+
+Responsible for this release: Igor Melatti (melatti@cs.utah.edu)
+
+===========================================================================
+
+This release is based on the CMurphi Release 3.1 and has been modified to
+implement a novel algorithm for parallel model checking. Responsible for
+the  CMurphi Release 3.1 are Giuseppe Della Penna (dellapenna@di.univaq.it)
+and Enrico Tronci (tronci@dsi.uniroma1.it).
+
+This version requires the installation of an MPI (Message Passing
+Interface) implementation, as well as of the PThread library.
+
+The paper describing this novel algorithm has been submitted to the
+Workshop SPIN 2006.
+
+Version 3.1.4 fix some bugs and offer a first support to error trace generation.
+
+1. Modifications to the distribution files
+
+Directories src, doc, ex and include have been modified w.r.t. CMurphi 3.1.
+See the README.Eddy_Murphi files in each of these directories for more
+information.
+
+
+2. Modifications to the Murphi Compiler
+
+The following options have been added to the mu compiler:
+
+ -p		enables the novel parallel algorithm
+ --dstrb_only	enables an MPI porting of PMurphi, a previous parallel
+		version for Murphi based on Active Messages and NOW (this 
+		is an alpha version).
+
+When those options are specified, the related algorithms are enabled
+in the generated verifiers. If none of the options are specified,
+the compiler generates the same verifiers as CMurphi 3.1
+
+
+3. Modifications to the Murphi Verifier
+
+See HOWTO.txt, HOWTO.ps or HOWTO.pdf.
+
+The following options have been disabled:
+
+ -d (soon available again)
+ -loop
+ -s 
+ -vdfs
+
+The parallel algorithms work only with Breadth First Search, so the DFS and
+simulation options are disabled.
+
+
+3. Compiling the Eddy_Murphi Compiler and Verifier
+
+See HOWTO.txt, HOWTO.ps or HOWTO.pdf.
+
+===========================================================================

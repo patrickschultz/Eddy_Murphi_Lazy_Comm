@@ -1,0 +1,14 @@
+===========================================================================
+This directory contains the include files for the Eddy_Murphi Verifier 
+Release 3.2.4
+===========================================================================
+
+This distribution has been obtained by modifying the following
+files in the CMurphi Verifier Release 3.1 distribution:
+
+mu_buffqueue.C, mu_buffqueue.h, mu_io.C, mu_io.h, mu_mutexes.C, mu_mutexes.h,
+mu_parallel.C, mu_parallel.h, mu_state.C, mu_statecl.h, mu_state.h,
+mu_system.C, mu_system.h, mu_util.C, mu_util.h, mu_verifier.C, mu_verifier.h,
+splitFile.C, splitFile.h
+
+===========================================================================

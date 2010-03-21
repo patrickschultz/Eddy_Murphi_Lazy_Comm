@@ -1,0 +1,22 @@
+===========================================================================
+This directory contains the include files for the Eddy_Murphi Verifier 
+Release 3.2.4
+===========================================================================
+
+This distribution has been obtained by modifying the following
+files in the CMurphi Verifier Release 3.1 distribution.
+
+mu_prolog.inc, mu_epilog.inc
+
+murphi.parallel/
+   This directory is new in the Eddy_Murphi 3.1 distribution.
+   It contains files that have been added or modified w.r.t. CMurphi 3.1 
+   to support the Eddy parallel algorithm (see README.Eddy_Murphi in the directory
+   for more details).
+
+murphi.parallel.nothread/
+   This directory is new in the Eddy_Murphi 3.1 distribution.
+   It contains files that have been added or modified w.r.t. CMurphi 3.1 
+   to support the MPI porting of PMurphi.
+
+===========================================================================
