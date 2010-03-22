@@ -55,6 +55,8 @@ using std::string;
 #define MESSAGE_STATES_REPLY            17
 #define MESSAGE_REQ_STATES			18
 
+#define MESSAGE_REQ_STATES_DENY_REPLY	20
+
 #define MESSAGE_STATES_REPLY_INT_LENGTH         1
 #define MESSAGE_TERMINATE_ULONG_LENGTH 		3
 #define MESSAGE_NUM_STATES_ULONG_LENGTH 	2
@@ -68,6 +70,7 @@ using std::string;
 #define MESSAGE_TERMINATE_TRACE_INT_LENGTH	1
 #define MESSAGE_STATES_TRACE_QUERY_ULONG_LENGTH	1
 #define MESSAGE_REQ_STATES_LENGTH	1
+#define MESSAGE_REQ_STATES_DENY_REPLY_LENGTH	1
 
 /* Allow to specify also at compilation time */
 #ifndef YIELD 
@@ -76,6 +79,8 @@ using std::string;
 #ifndef NO_AVAILABLE_BUFFERS_TRIALS
 #define NO_AVAILABLE_BUFFERS_TRIALS		3
 #endif
+
+#define MINIMUM_QUEUE_FOR_PULL_REQUEST 200
 
 class commQueue;
 
@@ -88,7 +93,7 @@ class commManager
 {
 public:
   commManager(void (*Hashstats)(int, unsigned long *, double *, bool *), int (*Queue)(char*, int), int (*workWaiting)(), 
-              int stateLen, int *argc, char*** argv);
+		  unsigned long (*getQueueSize)(), void(*AcceptPullRequest)(int), int stateLen, int *argc, char*** argv);
   ~commManager();
   void InitializeCommQueues(int NumBuffs, int BuffSize);
   int  PushState(char* data1, int owner);
@@ -167,6 +172,8 @@ private:
   int (*queue)(char*, int);
   int (*workWaiting)();
   unsigned message_hashmatrix_ulong_uint_length;
+  unsigned long (*queueSize)(); //Patrick
+  void (*acceptPullRequest)(int); //Patrick
 
   int BuffSize, StateLen, AuxLen, NumBuffs; // communication queues tuning params
   commQueue **queues; // the communication queues
@@ -178,10 +185,19 @@ private:
   short *m_stateReplyCount;  // Reply count for state messages sent
 
   bool workerWaiting;
-  bool requestedStates;
+  int pendingPullRequest;  //Patrick
+
 
   int numProcs, myRank; // MPI info
   double iTime, fTime; // MPI time
+
+  //Patrick
+  struct nodeLoad{
+	  int loadValue;
+	  bool reqFrom;
+  } *nodeLoads;
+
+  int sqrtNumProcs;
 
   // request handling -- physical array for two logical linked lists
   struct reqStruct{
@@ -238,6 +254,8 @@ private:
   void ReceiveStatesReply();
   void ReceiveTerminate();
   void ReceiveTermProbe();
+  int* getMostLoadedNodes(); //Patrick
+  void ReceiveRequestStatesDenied(); //Patrick
   void BroadcastTerminate();
   bool RecoverBuffers(bool &HasPendingSends);
   bool HasPendingSends();

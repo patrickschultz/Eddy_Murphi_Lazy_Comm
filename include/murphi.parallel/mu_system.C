@@ -222,7 +222,6 @@ StateManager::Add (state * s, bool valid, bool permanent, bool mayEnqueue)
     Reporter->print_progress ();
     return TRUE;
   }
-  //TODO get rid of this
   else {
     if (res != Communicate->GetRank()) {
         //s owns to someone else (whose index is in res)
@@ -301,6 +300,19 @@ StateManager::QueueDequeue (bool &checked, unsigned long &NumCurState)
 #endif
 }
 /* IM<e> */
+
+/**
+ * Patrick
+ */
+state *
+StateManager::QueueDequeue_Pull (bool &checked, unsigned long &NumCurState)
+{
+#ifdef HASHC_TRACE
+  return queue->dequeue (checked, NumCurState);
+#else
+  return queue->dequeue (checked);
+#endif
+}
 
 unsigned
 StateManager::NextRuleToTry ()	// Uli: unsigned short -> unsigned

@@ -85,6 +85,8 @@ public:
   bool NotQueueIsEmpty ();
   bool ParTerminate();
   state *QueueDequeue (bool&, unsigned long&);
+  state *
+  QueueDequeue_Pull (bool &checked, unsigned long &NumCurState); //Patrick
   bool SimpleWasPresent(state *);
   unsigned long NumEltsOthers() {return the_states->NumEltsOthers();}
   double NumEltsOthers_d() {return the_states->NumEltsOthers_d();}

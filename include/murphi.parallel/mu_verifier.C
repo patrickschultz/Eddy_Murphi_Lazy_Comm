@@ -55,24 +55,23 @@
  */
 
 /****************************************
-  There are 3 groups of implementations:
-  None of them belong to any class
-  1) verifying invariants
-  2) transition sets generation
-  3) verification and simulaiton supporting routines
-  4) BFS algorithm supporting -- generate next stateset
-  5) BFS algorithm main routine
-  6) DFS algorithm main routine
-  7) simulation
-  8) global variables
-  9) main function
-  ****************************************/
-
+ There are 3 groups of implementations:
+ None of them belong to any class
+ 1) verifying invariants
+ 2) transition sets generation
+ 3) verification and simulaiton supporting routines
+ 4) BFS algorithm supporting -- generate next stateset
+ 5) BFS algorithm main routine
+ 6) DFS algorithm main routine
+ 7) simulation
+ 8) global variables
+ 9) main function
+ ****************************************/
 
 /****************************************
-  Global variables:
-  void set_up_globals(int argc, char **argv)
-  ****************************************/
+ Global variables:
+ void set_up_globals(int argc, char **argv)
+ ****************************************/
 
 // why exists? (Norris)
 // saved value for the old new handler.
@@ -80,41 +79,65 @@
 
 #include <pthread.h>
 
-
 /****************************************
-  The Main() function:
-  int main(int argc, char **argv)
-  ****************************************/
+ The Main() function:
+ int main(int argc, char **argv)
+ ****************************************/
 
 static int g_initArgc;
 static char** g_initArgv;
 
 /* IM<b> */
-void stats(int rules, unsigned long *res_ul, double *res_d, bool *res_b){
-  if (rules) {
-    *res_ul = Rules->NumRulesFired();
-    *res_d = Rules->NumRulesFired_d();
-    *res_b = Rules->IsRulesFiredDouble();
-  }
-  else {
-    *res_ul = StateSet->NumElts();
-    *res_d = StateSet->NumElts_d();
-    *res_b = StateSet->IsNumEltsDouble();
-  }
+void stats(int rules, unsigned long *res_ul, double *res_d, bool *res_b) {
+	if (rules) {
+		*res_ul = Rules->NumRulesFired();
+		*res_d = Rules->NumRulesFired_d();
+		*res_b = Rules->IsRulesFiredDouble();
+	} else {
+		*res_ul = StateSet->NumElts();
+		*res_d = StateSet->NumElts_d();
+		*res_b = StateSet->IsNumEltsDouble();
+	}
 }
 
-int NotQueueEmpty(){
-  return (int)(StateSet != NULL && !(StateSet->QueueIsEmpty()));
+int NotQueueEmpty() {
+	return (int) (StateSet != NULL && !(StateSet->QueueIsEmpty()));
 }
 
 /* returns 1 if at least one new state is detected (should be always...) */
-int addToLocalQueue(char* qline, int length)
-{
-  if (StateSet == NULL)
-    sched_yield(); /* worker, hurry up in creating... */
-  return StateSet->AddMultiple(qline, length);
+int addToLocalQueue(char* qline, int length) {
+	if (StateSet == NULL)
+		sched_yield(); /* worker, hurry up in creating... */
+	return StateSet->AddMultiple(qline, length);
 }
 /* IM<e> */
+
+/*
+ * Patrick
+ */
+unsigned long getQueueSize() {
+	if (StateSet == NULL)
+		sched_yield(); /* worker, hurry up in creating... */
+
+	return StateSet->QueueNumElts();
+}
+
+/**
+ * Patrick
+ */
+void acceptPullRequest(int requesting_rank)
+{
+	bool checked;
+	unsigned long int numCurState;
+
+	int numToSend = (int)sqrt(getQueueSize());
+	LOG_VERBOSE(" Sending %d states to node %d.\n", numToSend, requesting_rank);
+	for(int i = 0; i < numToSend; i++){
+
+		state *s = StateSet->QueueDequeue_Pull(checked, numCurState);
+		Communicate->PushState((char*)s, requesting_rank);
+	}
+}
 
 int g_argc;
 char** g_argv;
@@ -123,128 +146,128 @@ char** g_argv;
 // Have the comm thread perform all of the intializations.  This forces all MPI calls to be
 // made from one thread.
 //
-void* startCommThread(void* syncMutex)
-{
-  mutexes = new Mutexes(NUM_MUTEXES);
-  Communicate = new commManager(&stats, &addToLocalQueue, &NotQueueEmpty,
-                    sizeof(class state), &g_initArgc, &g_initArgv);
-  args = new argclass (g_initArgc, g_initArgv);
-  CheckMemAvailable(args->bufsize.value, args->bufcount.value, args->mem.value);
-  Communicate->InitializeCommQueues(args->bufcount.value, args->bufsize.value);
-  Algorithm = new AlgorithmManager ();
-  
-  /* signal worker to continue*/
-  pthread_mutex_unlock((pthread_mutex_t*)syncMutex);
+void* startCommThread(void* syncMutex) {
+	mutexes = new Mutexes(NUM_MUTEXES);
+	Communicate = new commManager(&stats, &addToLocalQueue, &NotQueueEmpty,
+			&getQueueSize, &acceptPullRequest, sizeof(class state),
+			&g_initArgc, &g_initArgv);
+	args = new argclass(g_initArgc, g_initArgv);
+	CheckMemAvailable(args->bufsize.value, args->bufcount.value,
+			args->mem.value);
+	Communicate->InitializeCommQueues(args->bufcount.value, args->bufsize.value);
+	Algorithm = new AlgorithmManager();
 
-  /* Continue in comm loop */
-  Communicate->StartThread();
-  return NULL;
+	/* signal worker to continue*/
+	pthread_mutex_unlock((pthread_mutex_t*) syncMutex);
+
+	/* Continue in comm loop */
+	Communicate->StartThread();
+	return NULL;
 }
 
-int
-main (int argc, char **argv)
-{
-  pthread_attr_t commThreadAttr;
-  pthread_mutex_t syncMutex;
-  pthread_attr_init(&commThreadAttr);
-  pthread_mutex_init(&syncMutex, NULL);
+int main(int argc, char **argv) {
+	pthread_attr_t commThreadAttr;
+	pthread_mutex_t syncMutex;
+	pthread_attr_init(&commThreadAttr);
+	pthread_mutex_init(&syncMutex, NULL);
 
-  g_initArgc = argc;
-  g_initArgv = argv;
+	g_initArgc = argc;
+	g_initArgv = argv;
 
-  pthread_mutex_lock(&syncMutex);
-  pthread_create(commManager::GetThread(), &commThreadAttr, startCommThread, &syncMutex);
+	pthread_mutex_lock(&syncMutex);
+	pthread_create(commManager::GetThread(), &commThreadAttr, startCommThread,
+			&syncMutex);
 
-  /* wait until initializes finish */
-  pthread_mutex_lock(&syncMutex); 
+	/* wait until initializes finish */
+	pthread_mutex_lock(&syncMutex);
 
-//   if ( args->debug_sym.value )
-//     {
-//       verify_bfs_standard();
-//       print_no_error();
-//       print_summary();
-// 
-//       // copy_hashtable();
-//       debug_sym_the_states = new state_set;
-//       copy_state_set(debug_sym_the_states, the_states);
-//       the_states->clear_state_set();
-// 
-//       args->symmetry_reduction.reset(TRUE);
-//       verify_bfs_standard();
-//       print_no_error();
-//       print_summary();
-//       if (args->print_hash.value)
-//      print_hashtable();
-//     } 
-//   else
-  if (args->main_alg.mode == argmain_alg::Verify_bfs) {
-    Algorithm->verify_bfs ();
-  }
-  else if (args->main_alg.mode == argmain_alg::Verify_dfs) {
-    Algorithm->verify_dfs ();
-  }
-  else if (args->main_alg.mode == argmain_alg::Simulate) {
-    Algorithm->simulate ();
-  }
+	//   if ( args->debug_sym.value )
+	//     {
+	//       verify_bfs_standard();
+	//       print_no_error();
+	//       print_summary();
+	//
+	//       // copy_hashtable();
+	//       debug_sym_the_states = new state_set;
+	//       copy_state_set(debug_sym_the_states, the_states);
+	//       the_states->clear_state_set();
+	//
+	//       args->symmetry_reduction.reset(TRUE);
+	//       verify_bfs_standard();
+	//       print_no_error();
+	//       print_summary();
+	//       if (args->print_hash.value)
+	//      print_hashtable();
+	//     }
+	//   else
+	if (args->main_alg.mode == argmain_alg::Verify_bfs) {
+		Algorithm->verify_bfs();
+	} else if (args->main_alg.mode == argmain_alg::Verify_dfs) {
+		Algorithm->verify_dfs();
+	} else if (args->main_alg.mode == argmain_alg::Simulate) {
+		Algorithm->simulate();
+	}
 
-  cout.flush ();
+	cout.flush();
 #ifdef HASHC
-/* IM<b> */
+	/* IM<b> */
 #ifdef HASHC_TRACE
-/* IM<e> */
-  if (args->trace_file.value)
-    delete TraceFile;
-/* IM<b> */
+	/* IM<e> */
+	if (args->trace_file.value)
+	delete TraceFile;
+	/* IM<b> */
 #endif
-/* IM<e> */
+	/* IM<e> */
 #endif
-  if (Algorithm != NULL) delete Algorithm;		//fix: begin destruction chain
-  if (mutexes != NULL) delete mutexes;
-  if (Communicate != NULL) {
-    Communicate->DoBarrierAndFinalize ();
-    delete Communicate;
-  }
-  exit (0);
+	if (Algorithm != NULL)
+		delete Algorithm; //fix: begin destruction chain
+	if (mutexes != NULL)
+		delete mutexes;
+	if (Communicate != NULL) {
+		Communicate->DoBarrierAndFinalize();
+		delete Communicate;
+	}
+	exit(0);
 }
 
 /****************************************
-  * 8 Feb 94 Norris Ip:
-  add print hashtable for debugging
-  * 24 Feb 94 Norris Ip:
-  added -debugsym option to run two hash tables in parallel
-  for debugging purpose
-  * 8 March 94 Norris Ip:
-  merge with the latest rel2.6
-  * 12 April 94 Norris Ip:
-  add information about error in the condition of the rules
-  category = CONDITION
-  * 14 April 94 Norris Ip:
-  fixed simlution mode printing when -h is used
-  * 14 April 94 Norris Ip:
-  change numbering of symmetry algorithms
-  * 14 April 94 Norris Ip:
-  fixed the number of digit in time output
-****************************************/
+ * 8 Feb 94 Norris Ip:
+ add print hashtable for debugging
+ * 24 Feb 94 Norris Ip:
+ added -debugsym option to run two hash tables in parallel
+ for debugging purpose
+ * 8 March 94 Norris Ip:
+ merge with the latest rel2.6
+ * 12 April 94 Norris Ip:
+ add information about error in the condition of the rules
+ category = CONDITION
+ * 14 April 94 Norris Ip:
+ fixed simlution mode printing when -h is used
+ * 14 April 94 Norris Ip:
+ change numbering of symmetry algorithms
+ * 14 April 94 Norris Ip:
+ fixed the number of digit in time output
+ ****************************************/
 
 /********************
-  $Log: mu_verifier.C,v $
+ $Log: mu_verifier.C,v $
 
-  Revision 2.0  2003/01/07 14:31:42  giuseppe 
-  added a call to delete in main() to delete Algorithm object
+ Revision 2.0  2003/01/07 14:31:42  giuseppe
+ added a call to delete in main() to delete Algorithm object
 
-  Revision 1.2  1999/01/29 07:49:11  uli
-  bugfixes
+ Revision 1.2  1999/01/29 07:49:11  uli
+ bugfixes
 
-  Revision 1.4  1996/08/07 18:54:33  ip
-  last bug fix on NextRule/SetNextEnabledRule has a bug; fixed this turn
+ Revision 1.4  1996/08/07 18:54:33  ip
+ last bug fix on NextRule/SetNextEnabledRule has a bug; fixed this turn
 
-  Revision 1.3  1996/08/07 01:00:18  ip
-  Fixed bug on what_rule setting during guard evaluation; otherwise, bad diagnoistic message on undefine error on guard
+ Revision 1.3  1996/08/07 01:00:18  ip
+ Fixed bug on what_rule setting during guard evaluation; otherwise, bad diagnoistic message on undefine error on guard
 
-  Revision 1.2  1996/08/07 00:15:26  ip
-  fixed while code generation bug
+ Revision 1.2  1996/08/07 00:15:26  ip
+ fixed while code generation bug
 
-  Revision 1.1  1996/08/07 00:14:46  ip
-  Initial revision
+ Revision 1.1  1996/08/07 00:14:46  ip
+ Initial revision
 
-********************/
+ ********************/
