@@ -968,8 +968,8 @@ int state_set::simple_was_present (state * &in, bool valid, bool permanent, bool
     s_rank = in->hashkey()%(uint32_t)Communicate->GetNumProcs();
 #endif // ifndef HASHC
 
-/* Patrick    if (s_rank != Communicate->GetRank())
-      return s_rank;*/
+/* Patrick    */if (s_rank != Communicate->GetRank())
+      return s_rank;
   }
   /* if it continues, the actual node is the owner */
 #ifdef HASHC

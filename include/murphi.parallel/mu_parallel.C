@@ -242,6 +242,21 @@ void commManager::DisplayMPIError(std::string location, int MPIcode) {
 	mutexes->UnLockMutex(MUTEX_PRINT);
 }
 
+int commManager::Flush(int owner) {
+	int retVal = CATASTROPHIC_FAILURE;
+
+	if (owner < 0 || owner > numProcs)
+		return retVal;
+
+	if (owner == myRank)
+		return retVal;
+
+	retVal = queues[owner]->Flush();
+
+	LOG_VERBOSE(" (communicate) Flushing sending queues for Node %d.\n" , owner);
+	return retVal;
+}
+
 //
 // Called by the worker thread when a state not owned by the current node is
 // reached; instead of immediately sending the state, will attempt to push 
@@ -292,6 +307,7 @@ int commManager::PushState(char* state, int owner) {
 		no_available_buffers_stats[2]++;
 	}
 #endif
+	LOG_VERBOSE(" (communicate) Results of pushing state [%d].\n" , retVal);
 	return retVal;
 }
 
@@ -332,8 +348,8 @@ void commManager::handleStatePullRequest() {
 			return;
 		}
 	} else {
+		LOG_VERBOSE(" (communicate) Accepting state pull request from node %d. %lu states in queue.\n", requesting_rank, numElmtsInQueue );
 		acceptPullRequest(requesting_rank);
-		DoSends();
 	}
 }
 
@@ -429,6 +445,7 @@ bool commManager::PushReq(MPI_Request req, int node, int buf) {
 //
 bool commManager::DoSends() {
 	// a pointer to a commQueue buffer
+
 	char *buf;
 	int len, index, retVal, err = 0;
 	bool didWork = false;
@@ -445,6 +462,7 @@ bool commManager::DoSends() {
 		// get a buffer waiting to be sent from 'node's queue
 		// here (and in the equivalent call below) workerWaiting is used speedup purposes,
 		// so never mind if it changes immediately after the call...
+
 		retVal = queues[node]->GetBufferToCopy(&buf, &len, &index,
 				workerWaiting);
 
@@ -635,6 +653,8 @@ void commManager::ReceiveStatesReply() {
 // wakes it up
 //
 void commManager::ReceiveStates() {
+	LOG_VERBOSE(" (communicate) Entering ReceiveStates().\n");
+
 	// initialize receive buffer to maximum size
 	static char *buf = new char[BuffSize * StateLen];
 	assert(buf);
@@ -1245,20 +1265,21 @@ bool commManager::ProcessMessages() {
  DisplayMPIError("Send_Load_Idx(), MPI_Isend()", err);
  }*/
 
-int* commManager::getMostLoadedNodes() {
+int* commManager::getMostLoadedNodes(int numNodes) {
 	int *mostLoaded;
 	if (numProcs != 2) {
-		mostLoaded = new int[sqrtNumProcs];
+		mostLoaded = new int[numNodes];
 
 		int max;
 		int maxIdx;
 
-		for (int i = 0; i < sqrtNumProcs; i++) {
+		for (int i = 0; i < numNodes; i++) {
 
 			max = INT_MIN;
 			maxIdx = -1;
 			for (int j = 0; j < numProcs; j++) {
-				if (j != myRank && nodeLoads[j].loadValue > max && nodeLoads[j].reqFrom != true) {
+				if (j != myRank && nodeLoads[j].loadValue > max
+						&& nodeLoads[j].reqFrom != true) {
 					max = nodeLoads[j].loadValue;
 					maxIdx = j;
 				}
@@ -1280,22 +1301,26 @@ int* commManager::getMostLoadedNodes() {
  * Patrick
  * TODO
  */
-void commManager::RequestStates() {
+void commManager::RequestStates(int numNodes) {
 	//TODO lookup up load index and calculate host to pull from
+	assert(numNodes < numProcs );
 	MPI_Request req;
 	int err = 0;
-	int *requestFrom = getMostLoadedNodes();
-	for (int i = 0; i < sqrtNumProcs; i++) {
+	int *requestFrom = getMostLoadedNodes(numNodes);
+	for (int i = 0; i < numNodes; i++) {
 
 		int sendToRank = requestFrom[i];
-		LOG_VERBOSE("Sending pull request to %d.\n", sendToRank);
+		LOG_VERBOSE(" (communicate) Sending pull request to Node %d.\n", sendToRank);
 		err = MPI_Isend(&myRank, MESSAGE_REQ_STATES_LENGTH, MPI_UNSIGNED_LONG,
 				sendToRank, MESSAGE_REQ_STATES, MPI_COMM_WORLD, &req);
 		if (err)
 			DisplayMPIError("RequestStates(), MPI_Isend()", err);
 
+		nodeLoads[requestFrom[i]].reqFrom = true;
 		pendingPullRequest++;
 	}
+
+	//TODO free requestFrom
 }
 
 /**
@@ -1349,10 +1374,8 @@ void commManager::Run_commMgr(void *dummy) {
 		// Patrick request states if we are empty (and we only do it once)
 		if (!workWaiting()) {
 			if (pendingPullRequest == 0) {
-				RequestStates();
+				RequestStates(sqrtNumProcs);
 			}
-		} else {
-			pendingPullRequest = 0; // we short circuit it
 		}
 
 		// checks for too many idle loops

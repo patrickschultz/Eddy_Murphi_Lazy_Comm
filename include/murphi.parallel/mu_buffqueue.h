@@ -67,6 +67,7 @@ class commQueue
 public:
   commQueue(int bufSize = 1, int stLen = 1, int auxLen = 0, int numBufs = 1);
   ~commQueue(void);
+  int Flush();
   int Push(char*, int);
   int GetBufferToCopy(char**, int*, int*, bool);
   int ReturnBuffer(int);

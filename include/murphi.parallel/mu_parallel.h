@@ -80,7 +80,7 @@ using std::string;
 #define NO_AVAILABLE_BUFFERS_TRIALS		3
 #endif
 
-#define MINIMUM_QUEUE_FOR_PULL_REQUEST 200
+#define MINIMUM_QUEUE_FOR_PULL_REQUEST 400
 
 class commQueue;
 
@@ -96,10 +96,11 @@ public:
 		  unsigned long (*getQueueSize)(), void(*AcceptPullRequest)(int), int stateLen, int *argc, char*** argv);
   ~commManager();
   void InitializeCommQueues(int NumBuffs, int BuffSize);
+  int Flush(int owner);
   int  PushState(char* data1, int owner);
   void handleStatePullRequest(); //Patrick
   void CheckStableCondition();
-  void RequestStates(); // Patrick
+  void RequestStates(int); // Patrick
   void Run_commMgr(void *);
 
   void StartThread();
@@ -254,7 +255,7 @@ private:
   void ReceiveStatesReply();
   void ReceiveTerminate();
   void ReceiveTermProbe();
-  int* getMostLoadedNodes(); //Patrick
+  int* getMostLoadedNodes(int); //Patrick
   void ReceiveRequestStatesDenied(); //Patrick
   void BroadcastTerminate();
   bool RecoverBuffers(bool &HasPendingSends);

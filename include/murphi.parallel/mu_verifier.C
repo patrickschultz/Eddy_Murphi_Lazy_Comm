@@ -125,18 +125,27 @@ unsigned long getQueueSize() {
 /**
  * Patrick
  */
-void acceptPullRequest(int requesting_rank)
-{
+void acceptPullRequest(int requesting_rank) {
 	bool checked;
 	unsigned long int numCurState;
 
-	int numToSend = (int)sqrt(getQueueSize());
-	LOG_VERBOSE(" Sending %d states to node %d.\n", numToSend, requesting_rank);
-	for(int i = 0; i < numToSend; i++){
+	int numToSend = (int) sqrt(getQueueSize());
+	LOG_VERBOSE(" (state) Sending %d states to node %d.\n", numToSend,
+			requesting_rank);
+
+	//TODO need to lock the queue
+
+	for (int i = 0; i < numToSend; i++) {
 
 		state *s = StateSet->QueueDequeue_Pull(checked, numCurState);
-		Communicate->PushState((char*)s, requesting_rank);
+		if (!checked) {
+			if (StateSet->SimpleWasPresent(curstate))
+				continue;
+		}
+		Communicate->PushState((char*) s, requesting_rank);
 	}
+	Communicate->Flush(requesting_rank);
+
 }
 
 int g_argc;
